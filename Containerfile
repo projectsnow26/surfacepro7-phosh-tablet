@@ -26,7 +26,6 @@ LABEL containers.bootc="1"
 # STAGE 1: Add repositories
 # =============================================================================
 
-# Add linux-surface repository for Surface hardware support
 RUN <<EOF
 set -xeuo pipefail
 
@@ -44,9 +43,10 @@ gpgcheck=1
 gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-linux-surface
 REPO
 
-# Add RPMFusion Free (for multimedia codecs)
+# Add RPMFusion Free and Nonfree (for full multimedia codecs)
 dnf install -y \
-  https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-42.noarch.rpm
+  https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-42.noarch.rpm \
+  https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-42.noarch.rpm
 
 EOF
 
@@ -65,8 +65,7 @@ dnf install -y --allowerasing \
   libwacom-surface
 
 # Note: iptsd uses a template unit (iptsd@.service) that is automatically
-# started by udev when the touchscreen hardware is detected - no manual
-# enablement is needed.
+# started by udev when the touchscreen hardware is detected.
 
 EOF
 
@@ -78,7 +77,7 @@ RUN <<EOF
 set -xeuo pipefail
 
 # Install Phosh and related packages
-dnf install -y \
+dnf install -y --allowerasing \
   phosh \
   phoc \
   squeekboard \
@@ -98,8 +97,6 @@ dnf install -y \
   gnome-system-monitor \
   feedbackd \
   phosh-mobile-settings \
-  calls \
-  chatty \
   xdg-desktop-portal-gnome \
   xdg-desktop-portal-gtk
 
@@ -121,7 +118,7 @@ EOF
 RUN <<EOF
 set -xeuo pipefail
 
-dnf install -y \
+dnf install -y --allowerasing \
   pipewire \
   pipewire-pulseaudio \
   pipewire-alsa \
@@ -146,7 +143,7 @@ EOF
 RUN <<EOF
 set -xeuo pipefail
 
-dnf install -y \
+dnf install -y --allowerasing \
   flatpak \
   xdg-user-dirs \
   xdg-utils
@@ -163,10 +160,9 @@ EOF
 RUN <<EOF
 set -xeuo pipefail
 
-# Install additional networking and system tools
-# Note: NetworkManager, wpa_supplicant, bluez, fwupd, curl, less, vim-minimal 
-# are already in the base image. tuned-ppd replaces power-profiles-daemon in F42.
-dnf install -y \
+# Install additional tools (many networking packages already in base image)
+# Note: tuned-ppd is the default in F42, not power-profiles-daemon
+dnf install -y --allowerasing \
   NetworkManager-bluetooth \
   iwd \
   usbutils \
@@ -178,24 +174,23 @@ dnf install -y \
   rsync \
   unzip
 
-# Enable services (NetworkManager already enabled in base)
+# Enable bluetooth service
 systemctl enable bluetooth
 
 EOF
 
 # =============================================================================
-# STAGE 7: Install browsers (for streaming)
+# STAGE 7: Install browsers and multimedia
 # =============================================================================
 
 RUN <<EOF
 set -xeuo pipefail
 
-# Firefox with multimedia support
-dnf install -y \
+# Install Firefox and full ffmpeg from RPMFusion (not ffmpeg-free)
+# Base image has ffmpeg-libs from RPMFusion, so use full ffmpeg
+dnf install -y --allowerasing \
   firefox \
-  ffmpeg-free \
-  gstreamer1-plugins-good \
-  gstreamer1-plugins-bad-free \
+  ffmpeg \
   gstreamer1-plugin-openh264 \
   mozilla-openh264
 
@@ -208,7 +203,7 @@ EOF
 RUN <<EOF
 set -xeuo pipefail
 
-dnf install -y \
+dnf install -y --allowerasing \
   gstreamer1-plugins-ugly \
   gstreamer1-libav \
   intel-media-driver \
