@@ -11,16 +11,19 @@ modules:
   # ============================================================================
   - type: script
     snippets:
-      # 1. Setup Surface Repo
+      # 1. Force-download the Surface Linux repository file first
+      # This prevents the "No match for argument: kernel-surface-core" error
       - curl -L -o /etc/yum.repos.d/linux-surface.repo https://pkg.surfacelinux.com/fedora/linux-surface.repo
       
-      # 2. Perform the Swap (ignoring GPG checks for the build process)
+      # 2. Perform the kernel swap
       - echo "Swapping Fedora kernel for Surface kernel..."
+      # We use --nogpgcheck temporarily to avoid interactive key prompts breaking the build
       - dnf -y swap kernel-core kernel-surface-core --allowerasing --nogpgcheck
       - dnf -y swap kernel-modules kernel-surface-modules --allowerasing --nogpgcheck
+      # The extra modules swap might fail if the original didn't have extras, so we allow failure (|| true)
       - dnf -y swap kernel-modules-extra kernel-surface-modules-extra --allowerasing --nogpgcheck || true
       
-      # 3. Install Surface Utilities
+      # 3. Install the meta-package and surface utilities
       - dnf -y install kernel-surface iptsd libwacom-surface --nogpgcheck
       
       # 4. CRITICAL FIX: Manually remove leftover stock kernel modules
@@ -28,7 +31,9 @@ modules:
       # We delete any directory here that does NOT contain "surface" in its name.
       - echo "Cleaning up orphaned kernel module directories..."
       - find /usr/lib/modules -maxdepth 1 -mindepth 1 -type d -not -name "*surface*" -exec rm -rf {} +
-      - echo "Kernel modules directory content:"
+      
+      # 5. Verification (Outputs to log so you can confirm only one folder exists)
+      - echo "Kernel modules directory content (Should show only one folder):"
       - ls -la /usr/lib/modules
 
   # ============================================================================
@@ -36,22 +41,22 @@ modules:
   # ============================================================================
   - type: dnf
     install:
-      install-weak-deps: false
+      install-weak-deps: false   # Keep image lean
       packages:
-        # Core Phosh
+        # Core Phosh components
         - phosh
         - phoc
         - squeekboard
         - gdm
         
-        # GNOME Base
+        # GNOME infrastructure
         - gnome-session
         - gnome-settings-daemon
         - gnome-control-center
         - gnome-keyring
         - gnome-software
         
-        # Apps
+        # Mobile-friendly Apps
         - gnome-contacts
         - gnome-calendar
         - gnome-clocks
@@ -62,7 +67,7 @@ modules:
         - epiphany
         - nautilus
         
-        # Hardware/System
+        # Hardware Support
         - NetworkManager
         - NetworkManager-wifi
         - ModemManager
@@ -70,31 +75,41 @@ modules:
         - iio-sensor-proxy
         - power-profiles-daemon
         - upower
+        - feedbackd
+        
+        # Audio
         - pipewire
         - pipewire-pulseaudio
         - wireplumber
-        - feedbackd
-        - polkit
-        - dbus-daemon
         
         # Portals & Flatpak
         - xdg-desktop-portal
         - xdg-desktop-portal-gnome
         - xdg-desktop-portal-gtk
         - flatpak
+        
+        # System Utils
+        - polkit
+        - dbus-daemon
 
   # ============================================================================
-  # STAGE 3: System Configuration
+  # STAGE 3: Configuration Files
   # ============================================================================
   - type: files
     files:
       - source: system
         destination: /
 
+  # ============================================================================
+  # STAGE 4: Custom Setup Scripts
+  # ============================================================================
   - type: script
     scripts:
       - phosh-setup.sh
 
+  # ============================================================================
+  # STAGE 5: Systemd Services
+  # ============================================================================
   - type: systemd
     system:
       enabled:
@@ -108,10 +123,16 @@ modules:
       disabled:
         - sshd.service
 
+  # ============================================================================
+  # STAGE 6: Set Default Target
+  # ============================================================================
   - type: script
     snippets:
       - "systemctl set-default graphical.target"
 
+  # ============================================================================
+  # STAGE 7: Flatpaks
+  # ============================================================================
   - type: default-flatpaks
     system:
       repo-url: https://dl.flathub.org/repo/flathub.flatpakrepo
@@ -122,6 +143,6 @@ modules:
         - org.gnome.Maps
 
   # ============================================================================
-  # STAGE 4: Initramfs (Must be last to capture kernel changes)
+  # STAGE 8: Regenerate Initramfs (Must be last)
   # ============================================================================
   - type: initramfs
