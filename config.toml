@@ -1,0 +1,53 @@
+# bootc-image-builder configuration
+# Copy this file and customize before generating ISO
+#
+# Usage:
+#   cp config.toml.example config.toml
+#   # Edit config.toml with your username/password
+#   # Then run bootc-image-builder
+
+[[customizations.user]]
+# Your username
+name = "dj"
+
+# CHANGE THIS! Use a temporary password, then change after first boot
+password = "changeme"
+
+# Groups: wheel gives sudo access
+groups = ["wheel", "audio", "video"]
+
+# Optional: Add SSH public key for passwordless login
+# ssh_authorized_keys = ["ssh-ed25519 AAAA... your-key"]
+
+# Optional: Set a custom shell
+# shell = "/bin/bash"
+
+
+# =============================================================================
+# Optional: Additional users
+# =============================================================================
+# 
+# [[customizations.user]]
+# name = "guest"
+# password = "guest123"
+# groups = ["users"]
+
+
+# =============================================================================
+# Optional: Hostname
+# =============================================================================
+#
+# [customizations]
+# hostname = "surface-dj"
+
+
+# =============================================================================
+# Optional: Timezone and locale
+# =============================================================================
+#
+# [customizations.timezone]
+# timezone = "Europe/Berlin"
+#
+# [customizations.locale]
+# languages = ["en_US.UTF-8", "de_DE.UTF-8"]
+# keyboard = "us"

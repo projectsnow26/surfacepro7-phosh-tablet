@@ -1,0 +1,7 @@
+# Phosh favorites (app drawer order)
+# These apps appear in the favorites section at the top
+
+firefox.desktop
+org.gnome.Nautilus.desktop
+org.gnome.Console.desktop
+gnome-control-center.desktop

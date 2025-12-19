@@ -1,0 +1,44 @@
+# Surface Pro 7 udev rules
+# These complement the rules provided by linux-surface packages
+
+# =============================================================================
+# Surface hardware
+# =============================================================================
+
+# Surface cameras
+SUBSYSTEM=="video4linux", ATTR{name}=="*Surface Camera*", TAG+="uaccess"
+
+# Surface sensors (accelerometer, gyroscope, etc.)
+SUBSYSTEM=="iio", ATTR{name}=="*surface*", TAG+="uaccess"
+
+# Surface battery/power management
+SUBSYSTEM=="power_supply", ATTR{type}=="Battery", TAG+="uaccess"
+
+# Surface buttons
+SUBSYSTEM=="input", ATTR{name}=="*Surface*", TAG+="uaccess"
+
+# =============================================================================
+# Touch and pen (iptsd)
+# =============================================================================
+
+# Surface touch digitizer
+SUBSYSTEM=="hidraw", ATTR{device/uevent}=="*045E:099A*", MODE="0666", TAG+="uaccess"
+SUBSYSTEM=="hidraw", ATTR{device/uevent}=="*045E:0934*", MODE="0666", TAG+="uaccess"
+
+# Surface pen
+KERNEL=="uinput", MODE="0666", TAG+="uaccess"
+
+# =============================================================================
+# Power management hints
+# =============================================================================
+
+# Tell power management this is a mobile device
+SUBSYSTEM=="power_supply", ATTR{type}=="Battery", ENV{POWER_SUPPLY_CHARGE_TYPE}="Unknown"
+
+# =============================================================================
+# Backlight
+# =============================================================================
+
+# Surface display backlight
+SUBSYSTEM=="backlight", ACTION=="add", RUN+="/bin/chgrp video /sys/class/backlight/%k/brightness"
+SUBSYSTEM=="backlight", ACTION=="add", RUN+="/bin/chmod g+w /sys/class/backlight/%k/brightness"

@@ -1,0 +1,40 @@
+# Flatpak applications to install on first boot
+# Format: one app ID per line
+# Lines starting with # are comments
+
+# =============================================================================
+# DJ Software
+# =============================================================================
+org.mixxx.Mixxx
+
+# =============================================================================
+# Music Streaming
+# =============================================================================
+com.spotify.Client
+
+# =============================================================================
+# Video Streaming / Media
+# =============================================================================
+# Plex client
+tv.plex.PlexDesktop
+
+# Stremio (aggregates multiple streaming sources)
+com.stremio.Stremio
+
+# VLC media player
+org.videolan.VLC
+
+# =============================================================================
+# Browsers (for streaming services like Netflix, Disney+, etc.)
+# =============================================================================
+# Chromium (good PWA support for streaming)
+org.chromium.Chromium
+
+# =============================================================================
+# Utilities
+# =============================================================================
+# Flatseal (manage Flatpak permissions)
+com.github.tchx84.Flatseal
+
+# Extension Manager (for GNOME extensions if needed)
+com.mattjakeman.ExtensionManager
