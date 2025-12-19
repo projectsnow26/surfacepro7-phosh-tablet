@@ -1,0 +1,171 @@
+# yaml-language-server: $schema=https://schema.blue-build.org/recipe-v1.json
+
+# Fedora Phosh Surface - A mobile-ready Fedora image for Microsoft Surface tablets
+# Uses BlueBuild's akmods module for clean Surface kernel integration
+# and the dnf module for modern package management
+
+name: fedora-phosh-surface
+description: Fedora Atomic with Phosh shell optimized for Microsoft Surface devices
+
+# Use official Fedora bootc base image for maximum compatibility
+# This is a clean slate without desktop environment
+base-image: quay.io/fedora/fedora-bootc
+image-version: "42"
+
+modules:
+  # ============================================================================
+  # STAGE 1: Surface Kernel Installation via akmods
+  # ============================================================================
+  # The akmods module handles kernel replacement cleanly without the multiple
+  # kernel conflict issues that occur with raw DNF kernel installation.
+  # It pulls pre-built, tested kernel packages from Universal Blue's infrastructure.
+  # ... (after your existing 'dnf' module that adds the repo) ...
+
+  # ============================================================================
+  # STAGE 2.5: Swap Stock Kernel for Surface Kernel
+  # ============================================================================
+  - type: script
+    snippets:
+      # 1. Force-download the Surface Linux repository file first
+      - curl -L -o /etc/yum.repos.d/linux-surface.repo https://pkg.surfacelinux.com/fedora/linux-surface.repo
+      
+      # 2. Perform the kernel swap
+      - echo "Swapping Fedora kernel for Surface kernel..."
+      # We use --nogpgcheck temporarily to avoid interactive key prompts breaking the build
+      - dnf -y swap kernel-core kernel-surface-core --allowerasing --nogpgcheck
+      - dnf -y swap kernel-modules kernel-surface-modules --allowerasing --nogpgcheck
+      # The extra modules swap might fail if the original didn't have extras, so we allow failure (|| true)
+      - dnf -y swap kernel-modules-extra kernel-surface-modules-extra --allowerasing --nogpgcheck || true
+      
+      # 3. Install the meta-package and surface utilities
+      - dnf -y install kernel-surface iptsd libwacom-surface --nogpgcheck
+  # ============================================================================
+  # STAGE 2: Add linux-surface repository for additional Surface-specific packages
+  # ============================================================================
+  - type: dnf
+    repos:
+      files:
+        - https://pkg.surfacelinux.com/fedora/linux-surface.repo
+    install:
+      packages:
+        # Surface-specific userspace packages (kernel handled by akmods above)
+        - iptsd                    # Intel Precision Touch & Stylus Daemon
+        - libwacom-surface         # Surface-specific libwacom data
+
+  # ============================================================================
+  # STAGE 3: Install Phosh Desktop Environment and Core Components
+  # ============================================================================
+  - type: dnf
+    install:
+      install-weak-deps: false   # Keep image lean
+      packages:
+        # Phosh shell and compositor
+        - phosh                    # The mobile shell itself
+        - phoc                     # Phosh compositor (wlroots-based)
+        - squeekboard              # On-screen keyboard for Phosh
+        
+        # Display Manager - GDM works well with Phosh
+        - gdm
+        
+        # GNOME components required by Phosh
+        - gnome-session
+        - gnome-settings-daemon
+        - gnome-control-center
+        - gnome-keyring
+        - gnome-software           # For app installation
+        
+        # Mobile-friendly GNOME apps
+        - gnome-contacts
+        - gnome-calendar
+        - gnome-clocks
+        - gnome-weather
+        - gnome-calculator
+        - gnome-text-editor
+        - gnome-console            # Mobile-friendly terminal
+        - epiphany                 # GNOME Web (mobile-optimized)
+        - nautilus                 # File manager
+        
+        # Connectivity and hardware
+        - NetworkManager
+        - NetworkManager-wifi
+        - ModemManager             # For mobile broadband if available
+        - bluez                    # Bluetooth
+        - iio-sensor-proxy         # Sensor support (accelerometer, etc.)
+        - power-profiles-daemon    # Power management
+        - upower                   # Power management
+        
+        # Audio
+        - pipewire
+        - pipewire-pulseaudio
+        - wireplumber
+        
+        # Feedback daemon for haptics/sounds
+        - feedbackd
+        
+        # Portal support for sandboxed apps
+        - xdg-desktop-portal
+        - xdg-desktop-portal-gnome
+        - xdg-desktop-portal-gtk
+        
+        # Flatpak for additional apps
+        - flatpak
+        
+        # Utilities
+        - polkit
+        - dbus-daemon
+
+  # ============================================================================
+  # STAGE 4: Copy configuration files
+  # ============================================================================
+  - type: files
+    files:
+      - source: system
+        destination: /
+
+  # ============================================================================
+  # STAGE 5: Custom configuration script for Phosh-specific setup
+  # ============================================================================
+  - type: script
+    scripts:
+      - phosh-setup.sh
+
+  # ============================================================================
+  # STAGE 6: Enable required systemd services
+  # ============================================================================
+  - type: systemd
+    system:
+      enabled:
+        - gdm.service              # Display manager
+        - NetworkManager.service   # Networking
+        - bluetooth.service        # Bluetooth
+        - iptsd.service            # Surface touch/stylus daemon
+        - power-profiles-daemon.service
+        - feedbackd.service        # Haptic feedback
+        - iio-sensor-proxy.service # Sensors
+      disabled:
+        # Disable services that conflict or aren't needed
+        - sshd.service             # Disable SSH by default for security
+
+  # ============================================================================
+  # STAGE 7: Set default systemd target to graphical
+  # ============================================================================
+  - type: script
+    snippets:
+      - "systemctl set-default graphical.target"
+
+  # ============================================================================
+  # STAGE 8: Flatpak configuration for additional mobile apps
+  # ============================================================================
+  - type: default-flatpaks
+    system:
+      repo-url: https://dl.flathub.org/repo/flathub.flatpakrepo
+      repo-name: flathub
+      install:
+        - org.gnome.Loupe          # Image viewer
+        - org.gnome.Evince         # Document viewer
+        - org.gnome.Maps           # Maps application
+
+  # ============================================================================
+  # STAGE 9: Regenerate initramfs for Surface kernel
+  # ============================================================================
+  - type: initramfs

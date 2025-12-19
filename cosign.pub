@@ -1,9 +1,4 @@
 -----BEGIN PUBLIC KEY-----
-REPLACE_WITH_YOUR_COSIGN_PUBLIC_KEY
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEUAW2eccaXlBxleQ4kVoW5SpvRe2f
+GQf8DbwpDFVx2KLk5xEDE5b7pOvZUPYNCZc9Nzi93YzeD+llfFGfPd3axg==
 -----END PUBLIC KEY-----
-
-# Instructions:
-# 1. Generate keypair: cosign generate-key-pair
-# 2. Replace this file's contents with your cosign.pub
-# 3. Add cosign.key contents to GitHub Secret SIGNING_SECRET
-# 4. Delete cosign.key from your local machine
