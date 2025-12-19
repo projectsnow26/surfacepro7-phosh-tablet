@@ -163,34 +163,23 @@ EOF
 RUN <<EOF
 set -xeuo pipefail
 
+# Install additional networking and system tools
+# Note: NetworkManager, wpa_supplicant, bluez, fwupd, curl, less, vim-minimal 
+# are already in the base image. tuned-ppd replaces power-profiles-daemon in F42.
 dnf install -y \
-  NetworkManager \
-  NetworkManager-wifi \
   NetworkManager-bluetooth \
-  wpa_supplicant \
   iwd \
-  bluez \
-  power-profiles-daemon \
-  thermald \
-  fwupd \
   usbutils \
   pciutils \
   lshw \
   htop \
-  vim-minimal \
-  less \
-  curl \
   wget \
   git \
   rsync \
-  unzip \
-  bash-completion
+  unzip
 
-# Enable services
-systemctl enable NetworkManager
+# Enable services (NetworkManager already enabled in base)
 systemctl enable bluetooth
-systemctl enable power-profiles-daemon
-systemctl enable fwupd
 
 EOF
 
