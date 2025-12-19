@@ -3,110 +3,112 @@
 name: fedora-phosh-surface
 description: Fedora Atomic with Phosh shell optimized for Microsoft Surface devices
 base-image: quay.io/fedora/fedora-bootc
-image-version: "42" # Ensure this matches the Fedora version you intend to use
+image-version: "42"
 
 modules:
   # ============================================================================
-  # STAGE 1: Swap Kernel and Cleanup (The "Nuclear" Option)
+  # STAGE 1: Prepare Surface Repository
   # ============================================================================
   - type: script
     snippets:
-      # 1. Force-download the Surface Linux repository file first
-      # This prevents the "No match for argument: kernel-surface-core" error
+      # Import the GPG key properly to avoid dnf errors later
+      - rpm --import https://pkg.surfacelinux.com/fedora/linux-surface.pub
+      # Download the repo file
       - curl -L -o /etc/yum.repos.d/linux-surface.repo https://pkg.surfacelinux.com/fedora/linux-surface.repo
-      
-      # 2. Perform the kernel swap
-      - echo "Swapping Fedora kernel for Surface kernel..."
-      # We use --nogpgcheck temporarily to avoid interactive key prompts breaking the build
-      - dnf -y swap kernel-core kernel-surface-core --allowerasing --nogpgcheck
-      - dnf -y swap kernel-modules kernel-surface-modules --allowerasing --nogpgcheck
-      # The extra modules swap might fail if the original didn't have extras, so we allow failure (|| true)
-      - dnf -y swap kernel-modules-extra kernel-surface-modules-extra --allowerasing --nogpgcheck || true
-      
-      # 3. Install the meta-package and surface utilities
-      - dnf -y install kernel-surface iptsd libwacom-surface --nogpgcheck
-      
-      # 4. CRITICAL FIX: Manually remove leftover stock kernel modules
-      # bootc lint fails if /usr/lib/modules contains more than one directory.
-      # We delete any directory here that does NOT contain "surface" in its name.
-      - echo "Cleaning up orphaned kernel module directories..."
-      - find /usr/lib/modules -maxdepth 1 -mindepth 1 -type d -not -name "*surface*" -exec rm -rf {} +
-      
-      # 5. Verification (Outputs to log so you can confirm only one folder exists)
-      - echo "Kernel modules directory content (Should show only one folder):"
-      - ls -la /usr/lib/modules
 
   # ============================================================================
-  # STAGE 2: Install Phosh Desktop Environment
+  # STAGE 2: Install Phosh & Core Packages (Standard Fedora Kernel)
   # ============================================================================
   - type: dnf
     install:
-      install-weak-deps: false   # Keep image lean
+      install-weak-deps: false
       packages:
-        # Core Phosh components
+        # Core Phosh
         - phosh
         - phoc
         - squeekboard
         - gdm
         
-        # GNOME infrastructure
+        # GNOME Apps & Utils
         - gnome-session
         - gnome-settings-daemon
         - gnome-control-center
-        - gnome-keyring
         - gnome-software
-        
-        # Mobile-friendly Apps
+        - gnome-console
+        - nautilus
+        - epiphany
         - gnome-contacts
-        - gnome-calendar
-        - gnome-clocks
         - gnome-weather
         - gnome-calculator
-        - gnome-text-editor
-        - gnome-console
-        - epiphany
-        - nautilus
         
-        # Hardware Support
-        - NetworkManager
+        # Hardware
         - NetworkManager-wifi
-        - ModemManager
         - bluez
+        - iptsd
+        - libwacom-surface
         - iio-sensor-proxy
         - power-profiles-daemon
-        - upower
         - feedbackd
-        
-        # Audio
-        - pipewire
-        - pipewire-pulseaudio
-        - wireplumber
-        
-        # Portals & Flatpak
-        - xdg-desktop-portal
-        - xdg-desktop-portal-gnome
-        - xdg-desktop-portal-gtk
-        - flatpak
-        
-        # System Utils
-        - polkit
-        - dbus-daemon
 
   # ============================================================================
-  # STAGE 3: Configuration Files
+  # STAGE 3: Configuration
   # ============================================================================
   - type: files
     files:
       - source: system
         destination: /
 
-  # ============================================================================
-  # STAGE 4: Custom Setup Scripts
-  # ============================================================================
   - type: script
     scripts:
       - phosh-setup.sh
 
+  - type: systemd
+    system:
+      enabled:
+        - gdm.service
+        - iptsd.service
+        - feedbackd.service
+      disabled:
+        - sshd.service
+
+  - type: default-flatpaks
+    system:
+      repo-url: https://dl.flathub.org/repo/flathub.flatpakrepo
+      repo-name: flathub
+      install:
+        - org.gnome.Loupe
+        - org.gnome.Maps
+
+  # ============================================================================
+  # STAGE 4: The Critical Kernel Swap & Cleanup
+  # ============================================================================
+  # We do this LAST to minimize the chance of 'dnf' pulling the old kernel back
+  # as a dependency for some other package.
+  - type: script
+    snippets:
+      - echo "=== STARTING KERNEL SWAP ==="
+      
+      # 1. Swap the kernel packages
+      # We explicitly target kernel-core and kernel-modules to force the swap
+      - dnf swap -y kernel-core kernel-surface-core --allowerasing
+      - dnf swap -y kernel-modules kernel-surface-modules --allowerasing
+      - dnf swap -y kernel-modules-extra kernel-surface-modules-extra --allowerasing || true
+      
+      # 2. Ensure the meta-package is present
+      - dnf install -y kernel-surface
+      
+      # 3. THE FIX: Aggressively remove any packages related to the old kernel
+      # This catches edge cases like 'kernel-modules-core' that 'swap' might miss.
+      - dnf remove -y kernel-core kernel-modules kernel-modules-core || true
+      
+      # 4. NUCLEAR CLEANUP: Physically delete the old kernel directory.
+      # bootc lint checks /usr/lib/modules/ count. It MUST be 1.
+      - echo "Removing non-surface kernel directories..."
+      - find /usr/lib/modules -maxdepth 1 -mindepth 1 -type d -not -name "*surface*" -exec rm -rf {} +
+      
+      # 5. Verification for the build logs
+      - echo "Final /usr/lib/modules content (Must be exactly one directory):"
+      - ls -la /usr/lib/modules
   # ============================================================================
   # STAGE 5: Systemd Services
   # ============================================================================
