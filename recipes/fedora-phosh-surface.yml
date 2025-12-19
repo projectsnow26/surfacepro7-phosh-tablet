@@ -1,134 +1,105 @@
 # yaml-language-server: $schema=https://schema.blue-build.org/recipe-v1.json
 
-# Fedora Phosh Surface - A mobile-ready Fedora image for Microsoft Surface tablets
-# Uses BlueBuild's akmods module for clean Surface kernel integration
-# and the dnf module for modern package management
+# Fedora Phosh Surface - Phase 1: Working Phosh on Stock Kernel
+# =============================================================
+# This recipe builds a functional Phosh mobile shell on Fedora Atomic
+# using the stock Fedora kernel. Surface-specific hardware support
+# (touchscreen, pen, cameras) will be added in Phase 2.
+#
+# See SURFACE-KERNEL-ROADMAP.md for the path to full Surface support.
 
 name: fedora-phosh-surface
-description: Fedora Atomic with Phosh shell optimized for Microsoft Surface devices
+description: Fedora Atomic with Phosh shell for Microsoft Surface devices (Phase 1 - Stock Kernel)
 
-# Use official Fedora bootc base image for maximum compatibility
-# This is a clean slate without desktop environment
 base-image: quay.io/fedora/fedora-bootc
 image-version: "42"
 
 modules:
   # ============================================================================
-  # STAGE 1: Surface Kernel Installation via akmods
+  # STAGE 1: Add linux-surface repository
   # ============================================================================
-  # The akmods module handles kernel replacement cleanly without the multiple
-  # kernel conflict issues that occur with raw DNF kernel installation.
-  # It pulls pre-built, tested kernel packages from Universal Blue's infrastructure.
-  - type: akmods
-    base: surface  # This installs the surface kernel properly, replacing the base kernel
-
-  # ============================================================================
-  # STAGE 2: CRITICAL - Remove base Fedora kernel to fix bootc lint error
-  # ============================================================================
-  # bootc requires exactly ONE kernel in /usr/lib/modules
-  # The akmods module installs Surface kernel but may not remove the base kernel
+  # We add the repo now for userspace tools, even without the kernel
   - type: script
     snippets:
-      # Remove the base Fedora kernel packages - Surface kernel will remain
       - |
-        echo "=== Removing base Fedora kernel to ensure single kernel ==="
-        # List what's in /usr/lib/modules before cleanup
-        echo "Kernels before cleanup:"
-        ls -la /usr/lib/modules/ || true
-        
-        # Find and remove non-surface kernel directories
-        for dir in /usr/lib/modules/*/; do
-          dirname=$(basename "$dir")
-          if [[ ! "$dirname" =~ surface ]]; then
-            echo "Removing non-surface kernel: $dirname"
-            rm -rf "$dir"
-          fi
-        done
-        
-        # Also remove the kernel packages to be thorough
-        dnf remove -y kernel kernel-core kernel-modules kernel-modules-core kernel-modules-extra 2>/dev/null || true
-        
-        # Verify only surface kernel remains
-        echo "Kernels after cleanup:"
-        ls -la /usr/lib/modules/
+        echo "=== Adding linux-surface repository for userspace tools ==="
+        rpm --import https://pkg.surfacelinux.com/fedora/linux-surface.pub
+        curl -L -o /etc/yum.repos.d/linux-surface.repo https://pkg.surfacelinux.com/fedora/linux-surface.repo
 
   # ============================================================================
-  # STAGE 3: Add linux-surface repository for additional Surface-specific packages
+  # STAGE 2: Install Surface userspace tools (no kernel dependency)
   # ============================================================================
   - type: dnf
-    repos:
-      files:
-        - https://pkg.surfacelinux.com/fedora/linux-surface.repo
     install:
       packages:
-        # Surface-specific userspace packages (kernel handled by akmods above)
+        # These work without the Surface kernel and improve touch/stylus
         - iptsd                    # Intel Precision Touch & Stylus Daemon
         - libwacom-surface         # Surface-specific libwacom data
 
   # ============================================================================
-  # STAGE 4: Install Phosh Desktop Environment and Core Components
+  # STAGE 3: Install Phosh Desktop Environment and Core Components
   # ============================================================================
   - type: dnf
     install:
-      install-weak-deps: false   # Keep image lean
+      install-weak-deps: false
       packages:
-        # Phosh shell and compositor
-        - phosh                    # The mobile shell itself
-        - phoc                     # Phosh compositor (wlroots-based)
-        - squeekboard              # On-screen keyboard for Phosh
+        # === Phosh Shell Core ===
+        - phosh
+        - phoc
+        - squeekboard
         
-        # Display Manager - GDM works well with Phosh
+        # === Display Manager ===
         - gdm
         
-        # GNOME components required by Phosh
+        # === GNOME Components (required by Phosh) ===
         - gnome-session
         - gnome-settings-daemon
         - gnome-control-center
         - gnome-keyring
-        - gnome-software           # For app installation
+        - gnome-software
         
-        # Mobile-friendly GNOME apps
+        # === Mobile-Friendly Apps ===
         - gnome-contacts
         - gnome-calendar
         - gnome-clocks
         - gnome-weather
         - gnome-calculator
         - gnome-text-editor
-        - gnome-console            # Mobile-friendly terminal
-        - epiphany                 # GNOME Web (mobile-optimized)
-        - nautilus                 # File manager
+        - gnome-console
+        - epiphany
+        - nautilus
         
-        # Connectivity and hardware
+        # === Networking & Connectivity ===
         - NetworkManager
         - NetworkManager-wifi
-        - ModemManager             # For mobile broadband if available
-        - bluez                    # Bluetooth
-        - iio-sensor-proxy         # Sensor support (accelerometer, etc.)
-        - power-profiles-daemon    # Power management
-        - upower                   # Power management
+        - ModemManager
+        - bluez
         
-        # Audio
+        # === Hardware Support ===
+        - iio-sensor-proxy         # Accelerometer, ambient light sensor
+        - power-profiles-daemon
+        - upower
+        
+        # === Audio ===
         - pipewire
         - pipewire-pulseaudio
         - wireplumber
         
-        # Feedback daemon for haptics/sounds
-        - feedbackd
+        # === Mobile UX ===
+        - feedbackd                # Haptic/sound feedback
         
-        # Portal support for sandboxed apps
+        # === Portals & Flatpak ===
         - xdg-desktop-portal
         - xdg-desktop-portal-gnome
         - xdg-desktop-portal-gtk
-        
-        # Flatpak for additional apps
         - flatpak
         
-        # Utilities
+        # === System ===
         - polkit
         - dbus-daemon
 
   # ============================================================================
-  # STAGE 5: Copy configuration files
+  # STAGE 4: Copy configuration files
   # ============================================================================
   - type: files
     files:
@@ -136,77 +107,43 @@ modules:
         destination: /
 
   # ============================================================================
-  # STAGE 6: Custom configuration script for Phosh-specific setup
+  # STAGE 5: Phosh-specific configuration
   # ============================================================================
   - type: script
     scripts:
       - phosh-setup.sh
 
   # ============================================================================
-  # STAGE 7: Enable required systemd services
+  # STAGE 6: Enable systemd services
   # ============================================================================
   - type: systemd
     system:
       enabled:
-        - gdm.service              # Display manager
-        - NetworkManager.service   # Networking
-        - bluetooth.service        # Bluetooth
-        - iptsd.service            # Surface touch/stylus daemon
+        - gdm.service
+        - NetworkManager.service
+        - bluetooth.service
+        - iptsd.service            # Touch daemon (works partially without Surface kernel)
         - power-profiles-daemon.service
-        - feedbackd.service        # Haptic feedback
-        - iio-sensor-proxy.service # Sensors
+        - feedbackd.service
+        - iio-sensor-proxy.service
       disabled:
-        # Disable services that conflict or aren't needed
-        - sshd.service             # Disable SSH by default for security
+        - sshd.service
 
   # ============================================================================
-  # STAGE 8: Set default systemd target to graphical
+  # STAGE 7: Set graphical target
   # ============================================================================
   - type: script
     snippets:
       - "systemctl set-default graphical.target"
 
   # ============================================================================
-  # STAGE 9: Flatpak configuration for additional mobile apps
+  # STAGE 8: Flatpak apps
   # ============================================================================
   - type: default-flatpaks
     system:
       repo-url: https://dl.flathub.org/repo/flathub.flatpakrepo
       repo-name: flathub
       install:
-        - org.gnome.Loupe          # Image viewer
-        - org.gnome.Evince         # Document viewer
-        - org.gnome.Maps           # Maps application
-
-  # ============================================================================
-  # STAGE 10: Final cleanup and kernel verification
-  # ============================================================================
-  - type: script
-    snippets:
-      # Final verification that only one kernel exists
-      - |
-        echo "=== Final kernel verification ==="
-        kernel_count=$(ls -1d /usr/lib/modules/*/ 2>/dev/null | wc -l)
-        echo "Found $kernel_count kernel(s) in /usr/lib/modules:"
-        ls -la /usr/lib/modules/
-        
-        if [ "$kernel_count" -ne 1 ]; then
-          echo "ERROR: Expected exactly 1 kernel, found $kernel_count"
-          echo "Attempting final cleanup..."
-          # Keep only the surface kernel
-          for dir in /usr/lib/modules/*/; do
-            dirname=$(basename "$dir")
-            if [[ ! "$dirname" =~ surface ]]; then
-              echo "Removing: $dirname"
-              rm -rf "$dir"
-            fi
-          done
-        fi
-        
-        echo "Final kernel state:"
-        ls -la /usr/lib/modules/
-
-  # ============================================================================
-  # STAGE 11: Regenerate initramfs for Surface kernel
-  # ============================================================================
-  - type: initramfs
+        - org.gnome.Loupe
+        - org.gnome.Evince
+        - org.gnome.Maps
