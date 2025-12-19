@@ -64,8 +64,9 @@ dnf install -y --allowerasing \
   iptsd \
   libwacom-surface
 
-# Enable iptsd (touchscreen daemon) 
-systemctl enable iptsd
+# Note: iptsd uses a template unit (iptsd@.service) that is automatically
+# started by udev when the touchscreen hardware is detected - no manual
+# enablement is needed.
 
 EOF
 
